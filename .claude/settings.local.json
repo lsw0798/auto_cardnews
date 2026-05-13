@@ -1,1 +1,11 @@
-{}
+{
+  "env": {
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
+  },
+  "permissions": {
+    "allow": [
+      "Bash(mv _workspace _workspace_20260513_000000)",
+      "Bash(mkdir -p _workspace/00_input)"
+    ]
+  }
+}
