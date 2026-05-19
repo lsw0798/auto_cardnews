@@ -1,5 +1,5 @@
 import type { AgentLogEntry, CurateOutput, SearchOutput, StepResult } from "@/types"
-// import { callLLM } from "@/lib/external/llm-client"  // 임시 비활성화
+import { callLLM } from "@/lib/external/llm-client"
 import type { Agent } from "./types"
 
 function log(level: AgentLogEntry["level"], message: string): AgentLogEntry {
@@ -69,6 +69,38 @@ function mockCurate(input: SearchOutput): CurateOutput {
   }
 }
 
+interface LLMCurateResult {
+  summary: string
+  category: string
+  facts: string[]
+}
+
+function buildCuratePrompt(keyword: string, searchSummary: string): string {
+  return `검색 결과를 분석해서 '${keyword}' 카드뉴스에 쓸 핵심 정보를 추출해주세요.
+
+검색 결과:
+${searchSummary}
+
+반드시 아래 JSON 형식만 출력하세요:
+{
+  "summary": "전체 내용을 2~3문장으로 요약 (한국어, 독자 친화적)",
+  "category": "카테고리 한 단어 (예: 기술, 경제, 사회, 문화, 과학)",
+  "facts": [
+    "핵심 사실 문장 1 (간결하고 명확하게)",
+    "핵심 사실 문장 2",
+    "핵심 사실 문장 3",
+    "핵심 사실 문장 4",
+    "핵심 사실 문장 5"
+  ]
+}
+
+조건:
+- facts는 5~8개, 각 문장은 40자 이내
+- 중복 내용 제거
+- 출처 URL, 날짜 표현 제외
+- 한국어로만 작성`
+}
+
 export const curateAgent: Agent<SearchOutput, CurateOutput> = {
   stepId: "curate",
 
@@ -80,19 +112,38 @@ export const curateAgent: Agent<SearchOutput, CurateOutput> = {
     agentLog.push(log("info", `정보 정제 시작: "${input.keyword}"`))
 
     try {
-      /* LLM 호출 임시 비활성화 (429 quota 초과)
-      const searchSummary = input.results
-        .slice(0, 10)
-        .map((r, i) => `[${i + 1}] 제목: ${r.title}\n출처: ${r.url}\n내용: ${r.snippet}`)
-        .join("\n\n")
-      agentLog.push(log("info", "LLM 핵심 사실 추출 중..."))
-      const rawResponse = await callLLM([...], ctx.apiKeys, { jsonMode: true })
-      const parsed = JSON.parse(rawResponse) as LLMCurateResult
-      */
+      let output: CurateOutput
 
-      agentLog.push(log("info", "검색 결과 기반 사실 추출 중... (mock 모드)"))
-      const output = mockCurate(input)
-      agentLog.push(log("info", `핵심 사실 ${output.facts.length}개 추출 완료`))
+      if (ctx.apiKeys.openaiKey) {
+        const searchSummary = input.results
+          .slice(0, 10)
+          .map((r, i) => `[${i + 1}] 제목: ${r.title}\n출처: ${r.url}\n내용: ${r.snippet}`)
+          .join("\n\n")
+
+        agentLog.push(log("info", "LLM 핵심 사실 추출 중..."))
+        const rawResponse = await callLLM(
+          [{ role: "user", content: buildCuratePrompt(input.keyword, searchSummary) }],
+          ctx.apiKeys,
+          { jsonMode: true, maxTokens: 1000 }
+        )
+
+        const json = rawResponse.match(/\{[\s\S]*\}/)
+        if (!json) throw new Error("LLM 응답에서 JSON을 찾을 수 없습니다")
+        const parsed = JSON.parse(json[0]) as LLMCurateResult
+
+        output = {
+          keyword: input.keyword,
+          summary: parsed.summary ?? "",
+          category: parsed.category ?? "일반",
+          facts: Array.isArray(parsed.facts) ? parsed.facts.filter(Boolean) : [],
+          sources: input.results.map((r) => r.url).filter(Boolean),
+        }
+        agentLog.push(log("info", `LLM 핵심 사실 ${output.facts.length}개 추출 완료`))
+      } else {
+        agentLog.push(log("warn", "API 키 없음 — mock 모드로 사실 추출"))
+        output = mockCurate(input)
+        agentLog.push(log("info", `mock 사실 ${output.facts.length}개 추출 완료`))
+      }
 
       const completedAt = new Date().toISOString()
       const durationMs = new Date(completedAt).getTime() - new Date(startedAt).getTime()

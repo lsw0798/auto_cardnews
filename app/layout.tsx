@@ -10,6 +10,7 @@ export const metadata: Metadata = {
 function ApiStatus() {
   const openai = !!process.env.OPENAI_API_KEY
   const serper = !!process.env.SERPER_API_KEY
+  const model = process.env.LLM_MODEL ?? "gpt-4o"
   const allOk = openai && serper
 
   return (
@@ -26,7 +27,7 @@ function ApiStatus() {
         background: allOk ? "rgba(34,197,94,0.08)" : "rgba(239,68,68,0.08)",
         color: allOk ? "#4ade80" : "#f87171",
       }}
-      title={`OpenAI: ${openai ? "✓" : "✗"}  Serper: ${serper ? "✓" : "✗"}`}
+      title={`OpenAI: ${openai ? "✓" : "✗"}  Serper: ${serper ? "✓" : "✗"}  Model: ${model}`}
     >
       <span
         style={{
@@ -38,7 +39,7 @@ function ApiStatus() {
           flexShrink: 0,
         }}
       />
-      {allOk ? "API 연결됨" : "API 키 없음"}
+      {allOk ? `API 연결됨 · ${model}` : "API 키 없음"}
     </div>
   )
 }
