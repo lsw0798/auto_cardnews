@@ -7,7 +7,7 @@ function log(level: AgentLogEntry["level"], message: string): AgentLogEntry {
 }
 
 export const assembleAgent: Agent<
-  { imageOutput: ImageOutput; curateOutput: CurateOutput; templateId: string; keyword: string },
+  { imageOutput: ImageOutput; curateOutput: CurateOutput; keyword: string },
   AssembleOutput
 > = {
   stepId: "assemble",
@@ -28,7 +28,7 @@ export const assembleAgent: Agent<
         keyword: input.keyword,
         title,
         slides: input.imageOutput.slides,
-        templateId: input.templateId,
+        templateId: "dynamic",
         createdAt: new Date().toISOString(),
         metadata: {
           totalSlides: input.imageOutput.slides.length,

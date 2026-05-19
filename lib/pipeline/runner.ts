@@ -1,4 +1,4 @@
-import type { ApiKeys, CardSlide, SSEEvent, StepId, StepResult } from "@/types"
+import type { ApiKeys, SSEEvent, StepId, StepResult } from "@/types"
 import { createJob, getJob, updateJob } from "./state"
 import { emitPipelineEvent } from "./emitter"
 import { searchAgent } from "@/lib/agents/search-agent"
@@ -7,8 +7,6 @@ import { templateAgent } from "@/lib/agents/template-agent"
 import { imageAgent } from "@/lib/agents/image-agent"
 import { assembleAgent } from "@/lib/agents/assemble-agent"
 import type { AgentContext } from "@/lib/agents/types"
-
-const resumeCallbacks = new Map<string, (slides: CardSlide[]) => void>()
 
 function makeCtx(jobId: string, apiKeys: ApiKeys): AgentContext {
   return {
@@ -45,7 +43,7 @@ function failPipeline(jobId: string, error: unknown): void {
   })
 }
 
-export async function startPipeline(jobId: string, keyword: string, apiKeys: ApiKeys, templateId = "default-6slot"): Promise<void> {
+export async function startPipeline(jobId: string, keyword: string, apiKeys: ApiKeys): Promise<void> {
   const ctx = makeCtx(jobId, apiKeys)
   updateJob(jobId, (s) => ({ ...s, status: "running" }))
 
@@ -64,34 +62,15 @@ export async function startPipeline(jobId: string, keyword: string, apiKeys: Api
   // Step 3: template
   markRunning(jobId, "template")
   const templateResult = await templateAgent.run(
-    { curateOutput: curateResult.output!, templateId },
+    { curateOutput: curateResult.output! },
     ctx
   )
   applyResult(jobId, "template", templateResult)
   if (templateResult.status === "error") return failPipeline(jobId, templateResult.error)
 
-  // PAUSE: notify frontend that slides are ready for editing
-  emitPipelineEvent(jobId, {
-    type: "step:progress",
-    jobId,
-    stepId: "template",
-    payload: { ready: true, slides: templateResult.output!.slides },
-    timestamp: new Date().toISOString(),
-  })
-  updateJob(jobId, (s) => ({ ...s, currentStep: null }))
-
-  // Wait for PATCH /slides to resume
-  const editedSlides = await new Promise<CardSlide[]>((resolve) => {
-    resumeCallbacks.set(jobId, resolve)
-  })
-  resumeCallbacks.delete(jobId)
-
-  const finalTemplateOutput = { ...templateResult.output!, slides: editedSlides }
-  updateJob(jobId, (s) => ({ ...s, outputs: { ...s.outputs, template: finalTemplateOutput } }))
-
   // Step 4: image
   markRunning(jobId, "image")
-  const imageResult = await imageAgent.run(finalTemplateOutput, ctx)
+  const imageResult = await imageAgent.run(templateResult.output!, ctx)
   applyResult(jobId, "image", imageResult)
   if (imageResult.status === "error") return failPipeline(jobId, imageResult.error)
 
@@ -101,7 +80,6 @@ export async function startPipeline(jobId: string, keyword: string, apiKeys: Api
     {
       imageOutput: imageResult.output!,
       curateOutput: curateResult.output!,
-      templateId,
       keyword,
     },
     ctx
@@ -118,9 +96,3 @@ export async function startPipeline(jobId: string, keyword: string, apiKeys: Api
   })
 }
 
-export function resumePipeline(jobId: string, slides: CardSlide[]): boolean {
-  const resolve = resumeCallbacks.get(jobId)
-  if (!resolve) return false
-  resolve(slides)
-  return true
-}

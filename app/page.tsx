@@ -2,8 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { useApiKeys } from "@/hooks/useApiKeys"
-import type { CardNews, CardTemplate } from "@/types"
+import type { CardNews } from "@/types"
 
 const HISTORY_KEY = "cardnews_history"
 
@@ -22,43 +21,25 @@ function loadHistory(): HistoryItem[] {
 
 export default function HomePage() {
   const router = useRouter()
-  const { apiKeys, getEncodedKeys } = useApiKeys()
   const [keyword, setKeyword] = useState("")
-  const [templates, setTemplates] = useState<CardTemplate[]>([])
-  const [selectedTemplate, setSelectedTemplate] = useState("default-6slot")
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [history, setHistory] = useState<HistoryItem[]>([])
 
   useEffect(() => {
     setHistory(loadHistory())
-    fetch("/api/templates")
-      .then((r) => r.json())
-      .then((data: { data?: CardTemplate[] }) => {
-        if (data.data?.length) {
-          setTemplates(data.data)
-          setSelectedTemplate(data.data[0].id)
-        }
-      })
-      .catch(() => {})
   }, [])
 
   async function handleStart() {
     if (!keyword.trim()) return setError("키워드를 입력해주세요.")
-    if (!apiKeys.openaiKey || !apiKeys.serperKey) {
-      return setError("API 키를 먼저 설정해주세요. (우측 상단 'API 키 설정')")
-    }
     setLoading(true)
     setError(null)
 
     try {
       const response = await fetch("/api/pipeline", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-api-keys": getEncodedKeys(),
-        },
-        body: JSON.stringify({ keyword: keyword.trim(), templateId: selectedTemplate }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ keyword: keyword.trim() }),
       })
 
       const data = (await response.json()) as { data?: { jobId: string } }
@@ -119,33 +100,6 @@ export default function HomePage() {
             onBlur={(e) => (e.currentTarget.style.borderColor = "var(--color-border)")}
           />
         </div>
-
-        {templates.length > 0 && (
-          <div style={{ marginBottom: 24 }}>
-            <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--color-muted)", marginBottom: 8 }}>
-              템플릿
-            </label>
-            <select
-              value={selectedTemplate}
-              onChange={(e) => setSelectedTemplate(e.target.value)}
-              style={{
-                width: "100%",
-                padding: "10px 14px",
-                background: "var(--color-bg)",
-                border: "1px solid var(--color-border)",
-                borderRadius: "var(--radius-md)",
-                color: "var(--color-text)",
-                fontSize: 14,
-                outline: "none",
-                fontFamily: "inherit",
-              }}
-            >
-              {templates.map((t) => (
-                <option key={t.id} value={t.id}>{t.name}</option>
-              ))}
-            </select>
-          </div>
-        )}
 
         {error && (
           <div className="cn-fade-in" style={{ marginBottom: 16, padding: "10px 14px", background: "var(--color-error-soft)", borderRadius: "var(--radius-sm)", fontSize: 13, color: "var(--color-error)" }}>

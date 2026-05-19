@@ -22,12 +22,20 @@ function makeKoreanFallbacks(keyword: string, count: number): string[] {
   return templates.slice(0, count)
 }
 
+function cleanSnippet(text: string): string {
+  // 끝부분의 말줄임표 패턴 제거 (`. ...`, `。...`, `...`, `…` 순서로)
+  let cleaned = text.replace(/[。.]\s*\.{3}$/, "").replace(/\.{3}$/, "").replace(/…$/, "").trimEnd()
+  // trailing 공백·쉼표·세미콜론 정리 (마침표·느낌표·물음표는 유지)
+  cleaned = cleaned.replace(/[,;:\s]+$/, "")
+  return cleaned
+}
+
 function mockCurate(input: SearchOutput): CurateOutput {
   const results = input.results.slice(0, 8)
 
   const koreanFacts = results
     .filter((r) => r.snippet && r.snippet.length > 20 && containsKorean(r.snippet))
-    .map((r) => r.snippet.trim())
+    .map((r) => cleanSnippet(r.snippet.trim()))
 
   // 유사 문장 중복 제거 (앞 20자 기준)
   const seen = new Set<string>()
@@ -46,10 +54,10 @@ function mockCurate(input: SearchOutput): CurateOutput {
   const sources = results.map((r) => r.url).filter(Boolean)
 
   const firstKoreanSnippet =
-    results.find((r) => r.snippet && containsKorean(r.snippet))?.snippet?.slice(0, 80) ?? ""
+    cleanSnippet(results.find((r) => r.snippet && containsKorean(r.snippet))?.snippet?.slice(0, 80) ?? "")
   const summary =
     results.length > 0
-      ? `최근 ${results.length}건의 자료를 바탕으로 '${input.keyword}'의 핵심 내용을 정리했어요. ${firstKoreanSnippet}${firstKoreanSnippet ? "..." : ""}`
+      ? `최근 ${results.length}건의 자료를 바탕으로 '${input.keyword}'의 핵심 내용을 정리했어요. ${firstKoreanSnippet}`.trimEnd()
       : `'${input.keyword}'에 관한 핵심 정보를 한눈에 정리했어요.`
 
   return {

@@ -4,12 +4,9 @@ import type { CardSlideWithImage, SlotType } from "@/types"
 import { ImageSlot } from "./ImageSlot"
 
 const SLOT_COLORS: Record<SlotType, string> = {
-  cover:     "linear-gradient(160deg, #1e1b4b 0%, #312e81 100%)",
-  intro:     "linear-gradient(160deg, #0c4a6e 0%, #075985 100%)",
-  content:   "var(--color-surface)",
-  highlight: "linear-gradient(160deg, #3b0764 0%, #581c87 100%)",
-  summary:   "linear-gradient(160deg, #052e16 0%, #14532d 100%)",
-  outro:     "linear-gradient(160deg, #1c1917 0%, #292524 100%)",
+  title:   "#0a0a0a",
+  content: "#0a0a0a",
+  outro:   "#0a0a0a",
 }
 
 interface CardSlidePreviewProps {
@@ -18,9 +15,9 @@ interface CardSlidePreviewProps {
 
 export function CardSlidePreview({ slide }: CardSlidePreviewProps) {
   const bg = SLOT_COLORS[slide.slotType]
-  const { slotType, title, body, subtext, ctaText, image } = slide
+  const { slotType, title, body, subtext, image } = slide
 
-  if (slotType === "cover") {
+  if (slotType === "title") {
     return (
       <div style={{ width: "100%", height: "100%", background: bg, display: "flex", flexDirection: "column", overflow: "hidden" }}>
         <ImageSlot url={image.url} alt={image.alt} source={image.source} credit={image.credit} height={500} />
@@ -31,37 +28,34 @@ export function CardSlidePreview({ slide }: CardSlidePreviewProps) {
             </div>
           )}
           <h1 style={{ fontSize: 72, fontWeight: 900, margin: "0 0 24px", lineHeight: 1.15, color: "#fff" }}>{title}</h1>
-          {body && <p style={{ fontSize: 30, color: "rgba(255,255,255,0.75)", margin: "0 0 32px", lineHeight: 1.6 }}>{body}</p>}
-          {ctaText && (
-            <div style={{ display: "inline-block", padding: "16px 36px", background: "var(--color-accent)", borderRadius: 12, fontSize: 26, fontWeight: 700, color: "#fff" }}>
-              {ctaText}
-            </div>
-          )}
+          {body && <p style={{ fontSize: 30, color: "rgba(255,255,255,0.75)", margin: 0, lineHeight: 1.6 }}>{body}</p>}
         </div>
       </div>
     )
   }
 
-  if (slotType === "highlight") {
-    return (
-      <div style={{ width: "100%", height: "100%", background: bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "80px 72px", textAlign: "center" }}>
-        <div style={{ fontSize: 26, fontWeight: 700, color: "#c084fc", marginBottom: 40, letterSpacing: "0.12em" }}>✦ HIGHLIGHT ✦</div>
-        <h2 style={{ fontSize: 72, fontWeight: 900, margin: "0 0 36px", lineHeight: 1.2, color: "#fff" }}>{title}</h2>
-        {body && <p style={{ fontSize: 34, color: "rgba(255,255,255,0.8)", margin: 0, lineHeight: 1.65 }}>{body}</p>}
-      </div>
-    )
-  }
+  const bullets = body ? body.split("\n").filter(Boolean) : []
 
   return (
     <div style={{ width: "100%", height: "100%", background: bg, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-      <ImageSlot url={image.url} alt={image.alt} source={image.source} credit={image.credit} height={440} />
+      <ImageSlot url={image.url} alt={image.alt} source={image.source} credit={image.credit} height={420} />
       <div style={{ flex: 1, padding: "44px 60px", display: "flex", flexDirection: "column", justifyContent: "center" }}>
-        <div style={{ fontSize: 22, fontWeight: 700, color: "var(--color-muted)", marginBottom: 16, letterSpacing: "0.08em", textTransform: "uppercase" }}>
-          {slotType}
-        </div>
-        <h2 style={{ fontSize: 52, fontWeight: 800, margin: "0 0 24px", lineHeight: 1.25, color: "#fff" }}>{title}</h2>
-        {body && <p style={{ fontSize: 28, color: "rgba(255,255,255,0.72)", margin: "0 0 24px", lineHeight: 1.65 }}>{body}</p>}
-        {ctaText && <div style={{ fontSize: 28, fontWeight: 700, color: "var(--color-accent)" }}>{ctaText}</div>}
+        {subtext && (
+          <div style={{ fontSize: 24, fontWeight: 700, color: "#a5b4fc", marginBottom: 16, letterSpacing: "0.06em" }}>
+            {subtext}
+          </div>
+        )}
+        <h2 style={{ fontSize: 56, fontWeight: 800, margin: "0 0 28px", lineHeight: 1.25, color: "#fff" }}>{title}</h2>
+        {bullets.length > 0 && (
+          <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 14 }}>
+            {bullets.map((line, i) => (
+              <li key={i} style={{ display: "flex", alignItems: "flex-start", gap: 16, fontSize: 34, color: "rgba(255,255,255,0.82)", lineHeight: 1.55 }}>
+                <span style={{ color: "#a5b4fc", fontWeight: 900, flexShrink: 0, marginTop: 2 }}>•</span>
+                <span>{line}</span>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
     </div>
   )

@@ -1,13 +1,12 @@
 "use client"
 
-import { use, useState } from "react"
+import { use } from "react"
 import Link from "next/link"
 import { usePipelineStore } from "@/stores/pipelineStore"
 import { usePipelineStream } from "@/hooks/usePipelineStream"
 import { PipelineTimeline } from "@/components/pipeline/PipelineTimeline"
 import { AgentLogViewer } from "@/components/pipeline/AgentLogViewer"
-import { TemplateEditor } from "@/components/card-news/TemplateEditor"
-import type { AgentLogEntry, CardSlide } from "@/types"
+import type { AgentLogEntry } from "@/types"
 
 interface Props {
   params: Promise<{ jobId: string }>
@@ -17,34 +16,8 @@ export default function PipelineJobPage({ params }: Props) {
   const { jobId } = use(params)
   const streamState = usePipelineStream(jobId)
   const job = usePipelineStore((s) => s.jobs[jobId])
-  const [editingDone, setEditingDone] = useState(false)
-
-  const isTemplateReady =
-    !editingDone &&
-    job?.steps.template?.status === "done" &&
-    (job?.steps.image?.status === "pending" || !job?.currentStep)
-
   const activeStep = job?.currentStep
   const activeLogs: AgentLogEntry[] = activeStep ? (job?.steps[activeStep]?.agentLog ?? []) : []
-
-  async function handleSlidesSubmit(slides: CardSlide[]) {
-    const response = await fetch(`/api/pipeline/${jobId}/slides`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ slides }),
-    })
-    if (!response.ok) {
-      let detail = ""
-      try {
-        const body = (await response.json()) as { error?: { message?: string } }
-        detail = body.error?.message ?? ""
-      } catch {
-        detail = await response.text().catch(() => "")
-      }
-      throw new Error(`슬라이드 제출 실패 (${response.status})${detail ? `: ${detail}` : ""}`)
-    }
-    setEditingDone(true)
-  }
 
   if (!job) {
     return (
@@ -137,21 +110,6 @@ export default function PipelineJobPage({ params }: Props) {
             에이전트 로그
           </h2>
           <AgentLogViewer logs={activeLogs} />
-        </div>
-      )}
-
-      {isTemplateReady && job.outputs.template && (
-        <div className="cn-fade-in" style={{ marginBottom: 32 }}>
-          <div style={{ padding: "16px 20px", background: "var(--color-accent-soft)", border: "1px solid var(--color-accent)", borderRadius: "var(--radius-md)", marginBottom: 16 }}>
-            <p style={{ margin: 0, fontWeight: 600, color: "var(--color-accent)" }}>
-              ✏️ 슬라이드 내용을 수정한 후 이미지 생성을 시작하세요
-            </p>
-          </div>
-          <TemplateEditor
-            slides={job.outputs.template.slides}
-            jobId={jobId}
-            onSubmit={handleSlidesSubmit}
-          />
         </div>
       )}
 

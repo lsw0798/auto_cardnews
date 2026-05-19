@@ -1,6 +1,6 @@
 export type StepId = "search" | "curate" | "template" | "image" | "assemble"
 export type StepStatus = "pending" | "running" | "done" | "error"
-export type SlotType = "cover" | "intro" | "content" | "highlight" | "summary" | "outro"
+export type SlotType = "title" | "content" | "outro"
 export type SSEEventType =
   | "step:start"
   | "step:progress"
@@ -53,7 +53,6 @@ export interface CardSlide {
   title: string
   body: string
   subtext?: string
-  ctaText?: string
 }
 
 export interface TemplateOutput {

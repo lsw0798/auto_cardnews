@@ -1,45 +1,114 @@
 "use client"
 
-import { useRef, useState } from "react"
-import { toPng } from "html-to-image"
+import { useState, useRef } from "react"
 import type { CardSlideWithImage } from "@/types"
 import { CardSlidePreview } from "./CardSlidePreview"
 
 const CARD_W = 1080
 const CARD_H = 1350
-const DISPLAY_W = 432  // 화면에 보여줄 너비 (scale = 432/1080 = 0.4)
+const DISPLAY_W = 400
+const SIDE_W = 200
 
 interface CardNewsGalleryProps {
   slides: CardSlideWithImage[]
   keyword: string
 }
 
+async function downloadAllPng(slides: CardSlideWithImage[], keyword: string, containerRef: React.RefObject<HTMLDivElement | null>) {
+  const { default: html2canvas } = await import("html2canvas")
+  const container = containerRef.current
+  if (!container) return
+
+  const nodes = container.querySelectorAll<HTMLElement>("[data-slide-index]")
+
+  for (let i = 0; i < nodes.length; i++) {
+    const node = nodes[i]
+    const canvas = await html2canvas(node, {
+      width: CARD_W,
+      height: CARD_H,
+      scale: 1,
+      useCORS: true,
+      backgroundColor: "#0a0a0a",
+      logging: false,
+    })
+
+    await new Promise<void>((resolve) => {
+      canvas.toBlob((blob) => {
+        if (!blob) { resolve(); return }
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement("a")
+        a.href = url
+        a.download = `${keyword}-${String(i + 1).padStart(2, "0")}.png`
+        a.click()
+        URL.revokeObjectURL(url)
+        resolve()
+      }, "image/png")
+    })
+
+    // 브라우저가 다운로드 다이얼로그를 처리할 시간
+    await new Promise((r) => setTimeout(r, 400))
+  }
+}
+
+function SlideFrame({
+  slide,
+  displayW,
+  onClick,
+  dimmed,
+}: {
+  slide: CardSlideWithImage
+  displayW: number
+  onClick?: () => void
+  dimmed: boolean
+}) {
+  const scale = displayW / CARD_W
+  const displayH = Math.round(CARD_H * scale)
+
+  return (
+    <div
+      onClick={onClick}
+      style={{
+        width: displayW,
+        height: displayH,
+        overflow: "hidden",
+        borderRadius: 10,
+        boxShadow: dimmed ? "0 4px 16px rgba(0,0,0,0.2)" : "0 8px 32px rgba(0,0,0,0.4)",
+        flexShrink: 0,
+        opacity: dimmed ? 0.45 : 1,
+        transition: "opacity 200ms",
+        cursor: onClick ? "pointer" : "default",
+      }}
+    >
+      <div
+        style={{
+          width: CARD_W,
+          height: CARD_H,
+          transform: `scale(${scale})`,
+          transformOrigin: "top left",
+          pointerEvents: "none",
+        }}
+      >
+        <CardSlidePreview slide={slide} />
+      </div>
+    </div>
+  )
+}
+
 export function CardNewsGallery({ slides, keyword }: CardNewsGalleryProps) {
   const [current, setCurrent] = useState(0)
   const [downloading, setDownloading] = useState(false)
-  const slideRefs = useRef<(HTMLDivElement | null)[]>([])
-
-  const scale = DISPLAY_W / CARD_W
-  const displayH = Math.round(CARD_H * scale)
+  const captureRef = useRef<HTMLDivElement>(null)
 
   const prev = () => setCurrent((c) => Math.max(0, c - 1))
   const next = () => setCurrent((c) => Math.min(slides.length - 1, c + 1))
 
-  async function downloadAll() {
+  const hasPrev = current > 0
+  const hasNext = current < slides.length - 1
+
+  async function handleDownload() {
     setDownloading(true)
     try {
-      for (let i = 0; i < slides.length; i++) {
-        const el = slideRefs.current[i]
-        if (!el) continue
-        const dataUrl = await toPng(el, { cacheBust: true, pixelRatio: 1, width: CARD_W, height: CARD_H })
-        const link = document.createElement("a")
-        link.download = `${keyword}-${i + 1}.png`
-        link.href = dataUrl
-        link.click()
-        await new Promise((r) => setTimeout(r, 300))
-      }
-    } catch {
-      alert("다운로드 실패")
+      await downloadAllPng(slides, keyword, captureRef)
     } finally {
       setDownloading(false)
     }
@@ -47,10 +116,10 @@ export function CardNewsGallery({ slides, keyword }: CardNewsGalleryProps) {
 
   return (
     <div>
-      {/* 전체 다운로드 버튼 */}
+      {/* PNG 저장 버튼 */}
       <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 20 }}>
         <button
-          onClick={downloadAll}
+          onClick={handleDownload}
           disabled={downloading}
           style={{
             padding: "10px 22px",
@@ -64,25 +133,27 @@ export function CardNewsGallery({ slides, keyword }: CardNewsGalleryProps) {
             display: "flex",
             alignItems: "center",
             gap: 8,
+            transition: "background 150ms",
           }}
+          onMouseEnter={(e) => { if (!downloading) e.currentTarget.style.background = "var(--color-accent-hover)" }}
+          onMouseLeave={(e) => { if (!downloading) e.currentTarget.style.background = "var(--color-accent)" }}
         >
-          {downloading ? <><span className="cn-spinner" /> 저장 중...</> : "↓ 전체 이미지 저장"}
+          {downloading ? `저장 중... (${slides.length}장)` : `↓ PNG로 저장 (${slides.length}장)`}
         </button>
       </div>
 
       {/* 슬라이드 뷰어 */}
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 20 }}>
-        {/* 카드 + 좌우 버튼 */}
-        <div style={{ display: "flex", alignItems: "center", gap: 24 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
           <button
             onClick={prev}
-            disabled={current === 0}
+            disabled={!hasPrev}
             style={{
-              width: 44, height: 44, borderRadius: "50%",
-              background: current === 0 ? "var(--color-border)" : "var(--color-surface)",
+              width: 40, height: 40, borderRadius: "50%",
+              background: !hasPrev ? "var(--color-border)" : "var(--color-surface)",
               border: "1px solid var(--color-border)",
-              color: current === 0 ? "var(--color-muted)" : "var(--color-text)",
-              fontSize: 20, cursor: current === 0 ? "not-allowed" : "pointer",
+              color: !hasPrev ? "var(--color-muted)" : "var(--color-text)",
+              fontSize: 20, cursor: !hasPrev ? "not-allowed" : "pointer",
               display: "flex", alignItems: "center", justifyContent: "center",
               flexShrink: 0,
             }}
@@ -90,38 +161,21 @@ export function CardNewsGallery({ slides, keyword }: CardNewsGalleryProps) {
             ‹
           </button>
 
-          {/* 스케일 뷰어 */}
-          <div
-            style={{
-              width: DISPLAY_W,
-              height: displayH,
-              overflow: "hidden",
-              borderRadius: 12,
-              boxShadow: "0 8px 32px rgba(0,0,0,0.4)",
-              flexShrink: 0,
-            }}
-          >
-            <div
-              style={{
-                width: CARD_W,
-                height: CARD_H,
-                transform: `scale(${scale})`,
-                transformOrigin: "top left",
-              }}
-            >
-              <CardSlidePreview slide={slides[current]} />
-            </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            {hasPrev && <SlideFrame slide={slides[current - 1]} displayW={SIDE_W} onClick={prev} dimmed />}
+            <SlideFrame slide={slides[current]} displayW={DISPLAY_W} dimmed={false} />
+            {hasNext && <SlideFrame slide={slides[current + 1]} displayW={SIDE_W} onClick={next} dimmed />}
           </div>
 
           <button
             onClick={next}
-            disabled={current === slides.length - 1}
+            disabled={!hasNext}
             style={{
-              width: 44, height: 44, borderRadius: "50%",
-              background: current === slides.length - 1 ? "var(--color-border)" : "var(--color-surface)",
+              width: 40, height: 40, borderRadius: "50%",
+              background: !hasNext ? "var(--color-border)" : "var(--color-surface)",
               border: "1px solid var(--color-border)",
-              color: current === slides.length - 1 ? "var(--color-muted)" : "var(--color-text)",
-              fontSize: 20, cursor: current === slides.length - 1 ? "not-allowed" : "pointer",
+              color: !hasNext ? "var(--color-muted)" : "var(--color-text)",
+              fontSize: 20, cursor: !hasNext ? "not-allowed" : "pointer",
               display: "flex", alignItems: "center", justifyContent: "center",
               flexShrink: 0,
             }}
@@ -130,12 +184,10 @@ export function CardNewsGallery({ slides, keyword }: CardNewsGalleryProps) {
           </button>
         </div>
 
-        {/* 페이지 표시 */}
         <div style={{ fontSize: 14, color: "var(--color-muted)", fontWeight: 600 }}>
           {current + 1} / {slides.length}
         </div>
 
-        {/* 도트 인디케이터 */}
         <div style={{ display: "flex", gap: 8 }}>
           {slides.map((_, i) => (
             <button
@@ -156,13 +208,17 @@ export function CardNewsGallery({ slides, keyword }: CardNewsGalleryProps) {
         </div>
       </div>
 
-      {/* 실제 크기 슬라이드 (다운로드용, 화면 밖에 렌더링) */}
-      <div style={{ position: "fixed", left: -9999, top: 0, zIndex: -1, pointerEvents: "none" }}>
+      {/* 캡처용 숨김 컨테이너 (화면 밖) */}
+      <div
+        ref={captureRef}
+        style={{ position: "fixed", top: 0, left: "-9999px", pointerEvents: "none" }}
+        aria-hidden="true"
+      >
         {slides.map((slide, i) => (
           <div
             key={i}
-            ref={(el) => { slideRefs.current[i] = el }}
-            style={{ width: CARD_W, height: CARD_H }}
+            data-slide-index={i}
+            style={{ width: CARD_W, height: CARD_H, overflow: "hidden" }}
           >
             <CardSlidePreview slide={slide} />
           </div>
