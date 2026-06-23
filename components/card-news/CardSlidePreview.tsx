@@ -3,6 +3,8 @@
 import type { CardSlideWithImage, SlotType } from "@/types"
 import { ImageSlot } from "./ImageSlot"
 
+const CARD_FONT = '"SUIT", "Noto Sans KR", "Apple SD Gothic Neo", sans-serif'
+
 const SLOT_COLORS: Record<SlotType, string> = {
   title:   "#0a0a0a",
   content: "#0a0a0a",
@@ -19,11 +21,11 @@ export function CardSlidePreview({ slide }: CardSlidePreviewProps) {
 
   if (slotType === "title") {
     return (
-      <div style={{ width: "100%", height: "100%", background: bg, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+      <div style={{ width: "100%", height: "100%", background: bg, display: "flex", flexDirection: "column", overflow: "hidden", fontFamily: CARD_FONT }}>
         <ImageSlot url={image.url} alt={image.alt} source={image.source} credit={image.credit} height={500} />
-        <div style={{ flex: 1, padding: "48px 60px", display: "flex", flexDirection: "column", justifyContent: "center" }}>
+        <div style={{ flex: 1, padding: "48px 60px", display: "flex", flexDirection: "column", justifyContent: "center", transform: "translateY(28px)", }}>
           {subtext && (
-            <div style={{ fontSize: 26, fontWeight: 700, color: "#a5b4fc", marginBottom: 20, letterSpacing: "0.1em", textTransform: "uppercase" }}>
+            <div style={{ fontSize: 24, fontWeight: 700, color: "#a5b4fc", marginBottom: 16, letterSpacing: "0.1em", textTransform: "uppercase" }}>
               {subtext}
             </div>
           )}
@@ -37,11 +39,11 @@ export function CardSlidePreview({ slide }: CardSlidePreviewProps) {
   const bullets = body ? body.split("\n").filter(Boolean) : []
 
   return (
-    <div style={{ width: "100%", height: "100%", background: bg, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+    <div style={{ width: "100%", height: "100%", background: bg, display: "flex", flexDirection: "column", overflow: "hidden", fontFamily: CARD_FONT }}>
       <ImageSlot url={image.url} alt={image.alt} source={image.source} credit={image.credit} height={420} />
-      <div style={{ flex: 1, padding: "44px 60px", display: "flex", flexDirection: "column", justifyContent: "center" }}>
+      <div style={{ flex: 1, padding: "44px 60px", display: "flex", flexDirection: "column", justifyContent: "center", transform: "translateY(28px)", }}>
         {subtext && (
-          <div style={{ fontSize: 24, fontWeight: 700, color: "#a5b4fc", marginBottom: 16, letterSpacing: "0.06em" }}>
+          <div style={{ fontSize: 30, fontWeight: 700, color: "#a5b4fc", marginBottom: 16, letterSpacing: "0.06em" }}>
             {subtext}
           </div>
         )}
@@ -49,7 +51,7 @@ export function CardSlidePreview({ slide }: CardSlidePreviewProps) {
         {bullets.length > 0 && (
           <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 14 }}>
             {bullets.map((line, i) => (
-              <li key={i} style={{ display: "flex", alignItems: "flex-start", gap: 16, fontSize: 34, color: "rgba(255,255,255,0.82)", lineHeight: 1.55 }}>
+              <li key={i} style={{ display: "flex", alignItems: "flex-start", gap: 16, fontSize: 38, color: "rgba(255,255,255,0.82)", lineHeight: 1.55 }}>
                 <span style={{ color: "#a5b4fc", fontWeight: 900, flexShrink: 0, marginTop: 2 }}>•</span>
                 <span>{line}</span>
               </li>
