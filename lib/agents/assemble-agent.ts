@@ -1,6 +1,6 @@
 import { nanoid } from "nanoid"
 import type { AgentLogEntry, AssembleOutput, CardNews, CurateOutput, ImageOutput, StepResult } from "@/types"
-import type { Agent, AgentContext } from "./types"
+import type { Agent } from "./types"
 
 function log(level: AgentLogEntry["level"], message: string): AgentLogEntry {
   return { timestamp: new Date().toISOString(), level, message }

@@ -9,7 +9,7 @@ interface TemplateEditorProps {
   onSubmit: (slides: CardSlide[]) => Promise<void>
 }
 
-export function TemplateEditor({ slides: initialSlides, jobId, onSubmit }: TemplateEditorProps) {
+export function TemplateEditor({ slides: initialSlides, onSubmit }: TemplateEditorProps) {
   const [slides, setSlides] = useState<CardSlide[]>(initialSlides)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)

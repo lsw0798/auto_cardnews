@@ -1,6 +1,6 @@
-import type { AgentLogEntry, SearchOutput, SearchResult, SSEEvent, StepResult } from "@/types"
+import type { AgentLogEntry, SearchOutput, SearchResult, StepResult } from "@/types"
 import { searchWeb } from "@/lib/external/serper-client"
-import type { Agent, AgentContext } from "./types"
+import type { Agent } from "./types"
 
 function log(level: AgentLogEntry["level"], message: string): AgentLogEntry {
   return { timestamp: new Date().toISOString(), level, message }

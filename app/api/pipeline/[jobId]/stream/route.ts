@@ -3,6 +3,10 @@ import { subscribeToJob } from "@/lib/pipeline/emitter"
 import { getJob } from "@/lib/pipeline/state"
 import type { SSEEvent } from "@/types"
 
+export const runtime = "nodejs"
+export const dynamic = "force-dynamic"
+export const maxDuration = 60
+
 function sseMessage(event: SSEEvent): string {
   return `data: ${JSON.stringify(event)}\n\n`
 }
@@ -13,7 +17,7 @@ export async function GET(
 ): Promise<Response> {
   const { jobId } = await params
 
-  const job = getJob(jobId)
+  const job = await getJob(jobId)
   if (!job) return new Response("Job not found", { status: 404 })
 
   const stream = new ReadableStream({

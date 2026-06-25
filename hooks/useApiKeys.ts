@@ -19,17 +19,22 @@ export function useApiKeys() {
 
   useEffect(() => {
     if (typeof window === "undefined") return
-    try {
-      const raw = window.localStorage.getItem(STORAGE_KEY)
-      if (raw) {
-        const parsed = JSON.parse(raw) as Partial<ApiKeys>
-        setApiKeys({ ...DEFAULT_KEYS, ...parsed })
+
+    const timer = window.setTimeout(() => {
+      try {
+        const raw = window.localStorage.getItem(STORAGE_KEY)
+        if (raw) {
+          const parsed = JSON.parse(raw) as Partial<ApiKeys>
+          setApiKeys({ ...DEFAULT_KEYS, ...parsed })
+        }
+      } catch {
+        // Ignore parse errors and fall back to defaults
+      } finally {
+        setLoaded(true)
       }
-    } catch {
-      // Ignore parse errors and fall back to defaults
-    } finally {
-      setLoaded(true)
-    }
+    }, 0)
+
+    return () => window.clearTimeout(timer)
   }, [])
 
   function saveApiKeys(keys: ApiKeys) {

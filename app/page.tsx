@@ -27,7 +27,8 @@ export default function HomePage() {
   const [history, setHistory] = useState<HistoryItem[]>([])
 
   useEffect(() => {
-    setHistory(loadHistory())
+    const timer = window.setTimeout(() => setHistory(loadHistory()), 0)
+    return () => window.clearTimeout(timer)
   }, [])
 
   async function handleStart() {

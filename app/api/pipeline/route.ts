@@ -6,6 +6,10 @@ import { loadApiKeysFromEnv, validateApiKeys } from "@/lib/config/api-keys"
 import { createJob } from "@/lib/pipeline/state"
 import { startPipeline } from "@/lib/pipeline/runner"
 
+export const runtime = "nodejs"
+export const dynamic = "force-dynamic"
+export const maxDuration = 60
+
 export async function POST(req: NextRequest): Promise<NextResponse> {
   const apiKeys = loadApiKeysFromEnv()
   const keyError = validateApiKeys(apiKeys)
@@ -26,7 +30,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 
   const jobId = nanoid()
-  const state = createJob(jobId, keyword)
+  const state = await createJob(jobId, keyword)
 
   void startPipeline(jobId, keyword, apiKeys)
 

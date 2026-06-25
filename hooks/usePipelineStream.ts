@@ -2,191 +2,78 @@
 
 import { useEffect, useRef, useState } from "react"
 import { usePipelineStore } from "@/stores/pipelineStore"
-import type {
-  PipelineState,
-  SSEEvent,
-  StepId,
-  StepResult,
-} from "@/types"
+import type { PipelineState } from "@/types"
 
 interface StreamState {
   connected: boolean
   error: string | null
 }
 
+const POLL_INTERVAL_MS = 1500
+
 export function usePipelineStream(jobId: string | null) {
   const setJob = usePipelineStore((s) => s.setJob)
-  const updateJob = usePipelineStore((s) => s.updateJob)
   const [state, setState] = useState<StreamState>({
     connected: false,
     error: null,
   })
-  const esRef = useRef<EventSource | null>(null)
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     if (!jobId || typeof window === "undefined") return
 
     let cancelled = false
+    const controller = new AbortController()
 
-    // Initial fetch — populate the store immediately so the UI has data
-    // even before the first SSE event arrives.
-    fetch(`/api/pipeline/${jobId}`)
-      .then(async (r) => {
-        if (!r.ok) throw new Error(`Failed to load job (${r.status})`)
-        const json = (await r.json()) as { data?: PipelineState }
-        if (!cancelled && json.data) setJob(json.data)
-      })
-      .catch((err: unknown) => {
-        if (!cancelled) {
-          setState((prev) => ({
-            ...prev,
-            error: err instanceof Error ? err.message : "Unknown error",
-          }))
-        }
-      })
-
-    const es = new EventSource(`/api/pipeline/${jobId}/stream`)
-    esRef.current = es
-
-    es.onopen = () => setState({ connected: true, error: null })
-
-    es.onmessage = (event) => {
+    async function poll(): Promise<void> {
       try {
-        const sse = JSON.parse(event.data) as SSEEvent
-        applyEvent(jobId, sse, updateJob, () => {
-          es.close()
-          esRef.current = null
-          setState({ connected: false, error: null })
+        const response = await fetch(`/api/pipeline/${jobId}`, {
+          cache: "no-store",
+          signal: controller.signal,
         })
-      } catch {
-        // ignore malformed event
+
+        if (!response.ok) {
+          throw new Error(`Failed to load job (${response.status})`)
+        }
+
+        const json = (await response.json()) as { data?: PipelineState }
+        const job = json.data
+        if (!job || cancelled) return
+
+        setJob(job)
+        setState({ connected: true, error: null })
+
+        if (job.status === "completed" || job.status === "failed") {
+          setState({ connected: false, error: null })
+          return
+        }
+      } catch (err) {
+        if (!cancelled && !controller.signal.aborted) {
+          setState({
+            connected: false,
+            error: err instanceof Error ? err.message : "Unknown error",
+          })
+        }
+      }
+
+      if (!cancelled) {
+        timeoutRef.current = setTimeout(() => {
+          void poll()
+        }, POLL_INTERVAL_MS)
       }
     }
 
-    es.onerror = () => {
-      setState((prev) => ({ ...prev, connected: false }))
-    }
+    void poll()
 
     return () => {
       cancelled = true
-      es.close()
-      esRef.current = null
+      controller.abort()
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current)
+        timeoutRef.current = null
+      }
     }
-  }, [jobId, setJob, updateJob])
+  }, [jobId, setJob])
 
   return state
-}
-
-function applyEvent(
-  jobId: string,
-  event: SSEEvent,
-  updateJob: (
-    jobId: string,
-    updater: (state: PipelineState) => PipelineState
-  ) => void,
-  closeStream?: () => void
-) {
-  updateJob(jobId, (prev) => {
-    const next: PipelineState = {
-      ...prev,
-      updatedAt: event.timestamp,
-    }
-
-    if (event.type === "step:start" && event.stepId) {
-      const stepId = event.stepId
-      const existing: StepResult = prev.steps[stepId] ?? {
-        stepId,
-        status: "pending",
-        agentLog: [],
-      }
-      next.currentStep = stepId
-      next.status = "running"
-      next.steps = {
-        ...prev.steps,
-        [stepId]: {
-          ...existing,
-          status: "running",
-          startedAt: event.timestamp,
-        },
-      }
-    } else if (event.type === "step:progress" && event.stepId) {
-      const stepId = event.stepId
-      const existing: StepResult = prev.steps[stepId] ?? {
-        stepId,
-        status: "running",
-        agentLog: [],
-      }
-      const payload = event.payload as { log?: { level: "info" | "warn" | "error"; message: string } }
-      const newLog = payload?.log
-        ? [
-            ...existing.agentLog,
-            {
-              timestamp: event.timestamp,
-              level: payload.log.level,
-              message: payload.log.message,
-            },
-          ]
-        : existing.agentLog
-      next.steps = {
-        ...prev.steps,
-        [stepId]: { ...existing, agentLog: newLog },
-      }
-    } else if (event.type === "step:done" && event.stepId) {
-      const stepId = event.stepId
-      const existing: StepResult = prev.steps[stepId] ?? {
-        stepId,
-        status: "running",
-        agentLog: [],
-      }
-      const payload = event.payload as {
-        output?: unknown
-        durationMs?: number
-      }
-      next.steps = {
-        ...prev.steps,
-        [stepId]: {
-          ...existing,
-          status: "done",
-          output: payload?.output,
-          durationMs: payload?.durationMs,
-          completedAt: event.timestamp,
-        },
-      }
-      const outputs = { ...prev.outputs }
-      if (payload?.output) {
-        ;(outputs as Record<string, unknown>)[stepId] = payload.output
-      }
-      next.outputs = outputs
-    } else if (event.type === "step:error" && event.stepId) {
-      const stepId = event.stepId
-      const existing: StepResult = prev.steps[stepId] ?? {
-        stepId,
-        status: "running",
-        agentLog: [],
-      }
-      const payload = event.payload as {
-        error?: { code: string; message: string; retryable: boolean }
-      }
-      next.steps = {
-        ...prev.steps,
-        [stepId]: {
-          ...existing,
-          status: "error",
-          error: payload?.error,
-          completedAt: event.timestamp,
-        },
-      }
-      next.status = "failed"
-    } else if (event.type === "pipeline:complete") {
-      next.status = "completed"
-      next.currentStep = null
-      closeStream?.()
-    } else if (event.type === "pipeline:failed") {
-      next.status = "failed"
-      next.currentStep = null
-      closeStream?.()
-    }
-
-    return next
-  })
 }

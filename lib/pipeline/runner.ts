@@ -1,5 +1,5 @@
 import type { ApiKeys, SSEEvent, StepId, StepResult } from "@/types"
-import { createJob, getJob, updateJob } from "./state"
+import { updateJob } from "./state"
 import { emitPipelineEvent } from "./emitter"
 import { searchAgent } from "@/lib/agents/search-agent"
 import { curateAgent } from "@/lib/agents/curate-agent"
@@ -16,8 +16,8 @@ function makeCtx(jobId: string, apiKeys: ApiKeys): AgentContext {
   }
 }
 
-function markRunning(jobId: string, stepId: StepId): void {
-  updateJob(jobId, (s) => ({
+async function markRunning(jobId: string, stepId: StepId): Promise<void> {
+  await updateJob(jobId, (s) => ({
     ...s,
     status: "running",
     currentStep: stepId,
@@ -25,16 +25,16 @@ function markRunning(jobId: string, stepId: StepId): void {
   }))
 }
 
-function applyResult<T>(jobId: string, stepId: StepId, result: StepResult<T>): void {
-  updateJob(jobId, (s) => ({
+async function applyResult<T>(jobId: string, stepId: StepId, result: StepResult<T>): Promise<void> {
+  await updateJob(jobId, (s) => ({
     ...s,
     steps: { ...s.steps, [stepId]: result },
     outputs: result.output ? { ...s.outputs, [stepId]: result.output } : s.outputs,
   }))
 }
 
-function failPipeline(jobId: string, error: unknown): void {
-  updateJob(jobId, (s) => ({ ...s, status: "failed", currentStep: null }))
+async function failPipeline(jobId: string, error: unknown): Promise<void> {
+  await updateJob(jobId, (s) => ({ ...s, status: "failed", currentStep: null }))
   emitPipelineEvent(jobId, {
     type: "pipeline:failed",
     jobId,
@@ -45,37 +45,37 @@ function failPipeline(jobId: string, error: unknown): void {
 
 export async function startPipeline(jobId: string, keyword: string, apiKeys: ApiKeys): Promise<void> {
   const ctx = makeCtx(jobId, apiKeys)
-  updateJob(jobId, (s) => ({ ...s, status: "running" }))
+  await updateJob(jobId, (s) => ({ ...s, status: "running" }))
 
   // Step 1: search
-  markRunning(jobId, "search")
+  await markRunning(jobId, "search")
   const searchResult = await searchAgent.run({ keyword }, ctx)
-  applyResult(jobId, "search", searchResult)
+  await applyResult(jobId, "search", searchResult)
   if (searchResult.status === "error") return failPipeline(jobId, searchResult.error)
 
   // Step 2: curate
-  markRunning(jobId, "curate")
+  await markRunning(jobId, "curate")
   const curateResult = await curateAgent.run(searchResult.output!, ctx)
-  applyResult(jobId, "curate", curateResult)
+  await applyResult(jobId, "curate", curateResult)
   if (curateResult.status === "error") return failPipeline(jobId, curateResult.error)
 
   // Step 3: template
-  markRunning(jobId, "template")
+  await markRunning(jobId, "template")
   const templateResult = await templateAgent.run(
     { curateOutput: curateResult.output! },
     ctx
   )
-  applyResult(jobId, "template", templateResult)
+  await applyResult(jobId, "template", templateResult)
   if (templateResult.status === "error") return failPipeline(jobId, templateResult.error)
 
   // Step 4: image
-  markRunning(jobId, "image")
+  await markRunning(jobId, "image")
   const imageResult = await imageAgent.run(templateResult.output!, ctx)
-  applyResult(jobId, "image", imageResult)
+  await applyResult(jobId, "image", imageResult)
   if (imageResult.status === "error") return failPipeline(jobId, imageResult.error)
 
   // Step 5: assemble
-  markRunning(jobId, "assemble")
+  await markRunning(jobId, "assemble")
   const assembleResult = await assembleAgent.run(
     {
       imageOutput: imageResult.output!,
@@ -84,10 +84,10 @@ export async function startPipeline(jobId: string, keyword: string, apiKeys: Api
     },
     ctx
   )
-  applyResult(jobId, "assemble", assembleResult)
+  await applyResult(jobId, "assemble", assembleResult)
   if (assembleResult.status === "error") return failPipeline(jobId, assembleResult.error)
 
-  updateJob(jobId, (s) => ({ ...s, status: "completed", currentStep: null }))
+  await updateJob(jobId, (s) => ({ ...s, status: "completed", currentStep: null }))
   emitPipelineEvent(jobId, {
     type: "pipeline:complete",
     jobId,
