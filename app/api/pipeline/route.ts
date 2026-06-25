@@ -1,4 +1,5 @@
 import { nanoid } from "nanoid"
+import { waitUntil } from "@vercel/functions"
 import type { NextRequest } from "next/server"
 import { NextResponse } from "next/server"
 import type { ApiResponse } from "@/types"
@@ -32,7 +33,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const jobId = nanoid()
   const state = await createJob(jobId, keyword)
 
-  void startPipeline(jobId, keyword, apiKeys)
+  waitUntil(startPipeline(jobId, keyword, apiKeys))
 
   return NextResponse.json<ApiResponse<{ jobId: string; state: typeof state }>>(
     { success: true, data: { jobId, state }, error: null },
